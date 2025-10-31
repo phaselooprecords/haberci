@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Öne Çıkan Haberler</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #ffffff;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+        #link-list-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .link-button {
+            display: block;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            text-decoration: none;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-align: center;
+            border: 1px solid #444;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+            word-wrap: break-word;
+        }
+        .link-button:hover {
+            background-color: #3a3a3a;
+            transform: scale(1.02);
+        }
+        .loader {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        .footer {
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Öne Çıkan Haberler</h1>
+        
+        <div id="link-list-content">
+            <p class="loader">Bağlantılar yükleniyor...</p>
+        </div>
+
+        <div class="footer">
+            <p>News Curator tarafından desteklenmektedir</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchLinks();
+        });
+
+        async function fetchLinks() {
+            const contentArea = document.getElementById('link-list-content');
+            try {
+                // Bu, yönetici panelinizin kullandığı API uç noktasıyla aynı
+                const response = await fetch('/api/links/get');
+                if (!response.ok) throw new Error('Bağlantılar çekilemedi.');
+                
+                const links = await response.json();
+                
+                if (!links || links.length === 0) {
+                    contentArea.innerHTML = '<p class="loader">Henüz hiç bağlantı eklenmemiş.</p>';
+                    return;
+                }
+
+                contentArea.innerHTML = ''; // "Yükleniyor..." mesajını temizle
+
+                links.forEach(link => {
+                    const linkElement = document.createElement('a');
+                    linkElement.className = 'link-button';
+                    linkElement.href = link.link;
+                    linkElement.target = '_blank';
+                    linkElement.rel = 'noopener noreferrer';
+                    linkElement.textContent = link.title;
+                    contentArea.appendChild(linkElement);
+                });
+
+            } catch (error) {
+                console.error("Bağlantılar çekilirken hata:", error);
+                contentArea.innerHTML = `<p class="loader" style="color: red;">Hata: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

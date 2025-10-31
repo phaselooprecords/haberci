@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haber Küratörü</title> 
+    <style>
+        /* Base Styling + News List Image */
+        body { font-family: Arial, sans-serif; background-color: #000000; color: #f0f0f0; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; }
+        h1, h2, h3 { color: #ffffff; border-bottom: 2px solid #555; padding-bottom: 10px; text-align: center; margin-bottom: 15px; }
+        h3 { border-bottom: none; font-size: 1.1em; }
+        .article { background-color: #111111; padding: 15px; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border: 1px solid #333; display: flex; align-items: center; }
+        .article-content { flex-grow: 1; }
+        .article h2 { margin-top: 0; font-size: 1.2em; color: #ffffff; border-bottom: none; text-align: left; margin-bottom: 5px; }
+        .article p { font-size: 0.8em; color: #ccc; margin-top: 0;}
+        .article-image { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px; flex-shrink: 0; }
+
+        /* UI State & Image Grid + Context Links */
+        .hidden { display: none; }
+        .image-selection-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 10px; }
+        .image-container { display: flex; flex-direction: column; align-items: center; }
+        .image-container img { width: 100%; height: 120px; object-fit: cover; cursor: pointer; border: 3px solid transparent; border-radius: 4px; margin-bottom: 5px; }
+        .image-container img:hover { border-color: #555; }
+        .image-container a { display: block; text-decoration: none; color: #aaa; font-size: 0.7em; text-align: center; margin-top: 2px; word-break: break-all; }
+        .image-keyword { display: block; color: #777; font-size: 0.6em; text-align: center; margin-top: 1px; font-style: italic; }
+        .image-dimensions {
+             display: block; color: #666; font-size: 0.6em; text-align: center;
+             margin-top: 1px;
+        }
+        #image-loader-sentinel { height: 50px; text-align: center; color: #888; }
+
+
+        /* AI Text Preview Styling + Original Link */
+        #ai-text-preview { padding: 15px; background-color: #1a1a1a; margin-bottom: 10px; border-radius: 4px; border: 1px solid #333; }
+        #preview-headline { margin-top: 0; color: #FF6B6B; font-size: 1.4em; border-bottom: none; text-align: left;}
+        #preview-description { font-size: 0.9em; color: #eee; margin-bottom: 10px;}
+        #preview-caption-text { margin-top: 10px; font-style: italic; font-size: 0.9em; border-top: 1px dashed #333; padding-top: 10px; white-space: pre-wrap; /* Ensure line breaks show */ }
+        #original-article-link-container { margin-bottom: 20px; text-align: center; font-size: 0.9em;}
+        #original-article-link-container a { color: #87CEFA; text-decoration: none; }
+        #original-article-link-container a:hover { text-decoration: underline; }
+
+
+        #original-image-container img { width: 100%; max-width: 400px; margin: 10px auto; display: block; border: 2px solid #444; cursor: pointer; }
+        #related-articles-list { display: flex; flex-direction: column; gap: 8px; }
+        .related-article { background-color: #222; padding: 10px; border-radius: 4px; }
+        .related-article a { color: #87CEFA; text-decoration: none; font-size: 0.9em; }
+        .related-article p { font-size: 0.8em; color: #999; margin: 5px 0 0 0; }
+        #video-display-area { margin-top: 20px; margin-bottom: 20px; }
+        #video-display-area iframe,
+        #video-display-area video { width: 100%; max-width: 560px; aspect-ratio: 16 / 9; display: block; margin: 0 auto; border: 1px solid #333; border-radius: 4px; }
+        
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; margin-top: 5px; }
+        button:hover { background-color: #0056b3; }
+        button#download-preview-btn { background-color: #17a2b8; margin-right: 10px; }
+        button.back-button { background-color: #6c757d; margin-left: 10px;}
+        button#share-preview-btn { background-color: #007bff; margin-right: 10px;}
+        button#copy-caption-btn { background-color: #6f42c1; }
+        button#copy-caption-btn:hover { background-color: #5a2e9b; }
+        #simple-preview-image { width: 100%; max-width: 600px; margin: auto; display: block; margin-bottom: 20px; }
+        #ai-caption-display { background-color: #1a1a1a; padding: 15px; margin-top: 20px; border-radius: 4px; border: 1px solid #333; }
+        #ai-caption-display h3 { margin-top: 0; color: #FF6B6B; font-size: 1.4em; border-bottom: none; text-align: left;}
+        #ai-caption-display #caption-text-area { width: 100%; height: 120px; background-color: #222; color: #f0f0f0; border: 1px solid #444; padding: 10px; box-sizing: border-box; resize: vertical; font-family: Arial, sans-serif; font-size: 0.9em; margin-bottom: 10px; white-space: pre-wrap; /* Ensure line breaks show */}
+        #simple-preview-video-player { width: 100%; max-width: 600px; aspect-ratio: 16 / 9; margin: auto; display: none; margin-bottom: 20px; border: 1px solid #444;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>HABER KÜRATÖRÜ</h1> 
+        <p>Sosyal medya gönderisi oluşturmak için bir başlığa dokunun.</p>
+
+        <div id="news-list"> Haberler yükleniyor... </div>
+
+        <div id="selection-view" class="hidden">
+             <h2>Gönderi Görselinizi Seçin</h2>
+             <div id="ai-text-preview">
+                 <h3 id="preview-headline">YZ Metni Aşağıda Oluşturuldu</h3>
+                 <p id="preview-description"></p>
+                 <p id="preview-caption-text"></p>
+             </div>
+             <div id="original-article-link-container">
+                 <a id="original-article-link" href="#" target="_blank" rel="noopener noreferrer">Orijinal Makaleyi Görüntüle</a>
+             </div>
+             <div id="original-image-container" class="hidden">
+                 <h3>Orijinal Makale Görseli:</h3>
+                 <img id="original-image" src="" alt="Orijinal Makale Görseli" />
+             </div>
+             <h3>İlgili Web Görselleri:</h3>
+             <div id="image-selection-area" class="image-selection-grid">
+                 <p>Arama sorgusu için YZ metni oluşturuluyor...</p>
+             </div>
+             <div id="image-loader-sentinel" style="height: 50px;"></div>
+
+             <h3>Diğer Kaynaklar:</h3>
+             <div id="related-articles-list">
+                 <p>İlgili makaleler bulunuyor...</p>
+             </div>
+        </div>
+
+        <div id="simple-preview-view" class="hidden">
+            <h2>Hızlı Önizleme</h2>
+            <img id="simple-preview-image" src="" alt="Basit Önizleme" />
+            <div id="simple-preview-video-player" style="display: none;"></div>
+
+            <div id="video-display-area" class="hidden">
+                <h3>İlgili Video:</h3>
+                <div id="video-player-container"></div>
+            </div>
+
+            <div id="ai-caption-display">
+                <h3>YZ Gönderi Metni:</h3>
+                <textarea id="caption-text-area" readonly></textarea>
+                <button id="copy-caption-btn">Metni Kopyala</button>
+            </div>
+
+            <button id="share-preview-btn">Gönder</button>
+            <button id="download-preview-btn">Resmi İndir</button>
+            <button onclick="setView('select')" class="back-button">Seçime Geri Dön</button>
+        </div>
+
+    </div>
+
+<script>
+        // --- Global State Variables ---
+        let currentArticleData = null;
+        let currentCuratedData = null;
+        let simplePreviewImagePath = null; // This will now hold an Object URL
+        let currentObjectUrl = null; // Helper to manage Object URL memory
+        let currentVideoUrl = null;
+        const IMAGES_PER_PAGE = 9;
+        let currentSearchKeywords = [];
+        let currentKeywordIndex = 0;
+        let currentImageStartIndex = 0;
+        let currentImageContextUrl = null;
+        let isFetchingImages = false; 
+        let imageObserver = null; 
+
+        // --- Event Listener for DOM Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM yüklendi. fetchNews() çağrılıyor...");
+            fetchNews();
+            initializeInfiniteScroll(); 
+
+            document.getElementById('download-preview-btn').onclick = () => handleDownload();
+            document.getElementById('share-preview-btn').onclick = () => handleShare();
+            document.getElementById('copy-caption-btn').onclick = () => handleCopyCaption();
+        });
+
+        // --- Infinite Scroll Setup ---
+        function initializeInfiniteScroll() {
+            const sentinel = document.getElementById('image-loader-sentinel');
+            if (!sentinel) return;
+
+            const options = { root: null, rootMargin: '0px', threshold: 0.1 };
+
+            imageObserver = new IntersectionObserver((entries) => {
+                const entry = entries[0];
+                if (entry.isIntersecting && !isFetchingImages) {
+                    console.log("[Observer] Gözetleyici göründü, daha fazla resim yükleniyor...");
+                    loadMoreImages();
+                }
+            }, options);
+
+            imageObserver.observe(sentinel);
+        }
+
+        // --- Logic for loading more images ---
+        function loadMoreImages() {
+            if (isFetchingImages || currentSearchKeywords.length === 0) return;
+            isFetchingImages = true;
+            
+            currentImageStartIndex += IMAGES_PER_PAGE;
+            const currentKeyword = currentSearchKeywords[currentKeywordIndex];
+            console.log(`[loadMoreImages] "${currentKeyword}" için sıradaki resimler yükleniyor, başlangıç: ${currentImageStartIndex}`);
+            fetchImages(currentKeyword, currentImageStartIndex);
+        }
+
+        // --- UI View Handler ---
+        function setView(viewId) {
+            console.log(`setView çağrıldı: ${viewId}`);
+            const newsList = document.getElementById('news-list');
+            const selectionView = document.getElementById('selection-view');
+            const simplePreviewView = document.getElementById('simple-preview-view');
+            if (!newsList || !selectionView || !simplePreviewView) {
+                console.error("setView Hatası: Görünüm elemanları bulunamadı!"); return;
+            }
+            console.log("setView: Tüm görünüm elemanları bulundu.");
+            newsList.classList.add('hidden'); selectionView.classList.add('hidden'); simplePreviewView.classList.add('hidden');
+            console.log("setView: Tüm görünümlere 'hidden' eklendi.");
+            if (viewId === 'list') { newsList.classList.remove('hidden'); console.log("setView: 'news-list' gösteriliyor."); }
+            else if (viewId === 'select') { selectionView.classList.remove('hidden'); console.log("setView: 'selection-view' gösteriliyor."); }
+            else if (viewId === 'simple-preview') {
+                simplePreviewView.classList.remove('hidden'); console.log("setView: 'simple-preview-view' gösteriliyor.");
+                populateCaptionDisplay();
+                const downloadBtn = document.getElementById('download-preview-btn');
+                const imgPreview = document.getElementById('simple-preview-image');
+                const videoPreview = document.getElementById('simple-preview-video-player');
+                if (currentVideoUrl) { 
+                    imgPreview.style.display = 'none'; 
+                    videoPreview.style.display = 'block'; 
+                    document.getElementById('video-display-area').classList.remove('hidden'); // Video bölümünü göster
+                    downloadBtn.textContent = 'Videoyu İndir/Aç'; 
+                } else { 
+                    imgPreview.style.display = 'block'; 
+                    videoPreview.style.display = 'none'; 
+                    document.getElementById('video-display-area').classList.add('hidden'); // Video bölümünü gizle
+                    downloadBtn.textContent = 'Resmi İndir'; 
+                }
+            }
+        }
+
+        // --- Fetch Initial News Feed ---
+        async function fetchNews() {
+            console.log("fetchNews fonksiyonu BAŞLADI.");
+            const newsListElement = document.getElementById('news-list');
+            if (!newsListElement) { console.error("KRİTİK HATA: news-list elemanı BULUNAMADI!"); alert("Sayfa yapısı hatası."); return; }
+            newsListElement.innerHTML = 'Haberler yükleniyor...';
+            console.log("'Haberler yükleniyor...' metni ayarlandı.");
+            try {
+                console.log("try bloğu içi, fetch('/api/news') ÖNCESİ");
+                const response = await fetch('/api/news');
+                console.log("fetch('/api/news') SONRASI, Durum:", response.status);
+                if (!response.ok) { console.error("Fetch yanıtı OK değil:", response.status); throw new Error(`HTTP hatası! durum: ${response.status}`); }
+                console.log("Yanıt OK. response.json() deneniyor...");
+                const articles = await response.json();
+                console.log("JSON başarıyla ayrıştırıldı. Makale sayısı:", articles ? articles.length : 'null/undefined');
+                if (!articles || articles.length === 0) { newsListElement.innerHTML = '<p>Hiç haber makalesi bulunamadı.</p>'; console.log("Makale bulunamadı."); return; }
+                newsListElement.innerHTML = '';
+                console.log("Yükleme mesajı temizlendi. Makale döngüsü başlıyor...");
+                articles.forEach((article, index) => {
+                    const articleElement = document.createElement('div'); articleElement.className = 'article'; articleElement.dataset.link = article.link;
+                    const imgElement = document.createElement('img'); imgElement.className = 'article-image';
+                    imgElement.src = article.originalImageUrl || '/fallback-thumbnail.png'; 
+                    imgElement.alt = 'Makale küçük resmi'; 
+                    imgElement.onerror = function() { this.src='/fallback-thumbnail.png'; };
+                    const contentElement = document.createElement('div'); contentElement.className = 'article-content'; contentElement.innerHTML = `<h2>${article.title}</h2><p>Kaynak: ${article.source} | Yayın: ${new Date(article.pubDate).toLocaleDateString()}</p>`;
+                    articleElement.appendChild(imgElement); articleElement.appendChild(contentElement);
+                    articleElement.onclick = () => handleArticleTap(article);
+                    newsListElement.appendChild(articleElement);
+                });
+                console.log("Tüm makalelerin işlenmesi bitti.");
+            } catch (error) { console.error('!!! CATCH HATASI (fetchNews):', error); newsListElement.innerHTML = '<p style="color: red;">Haberler yüklenemedi. Konsolu kontrol edin.</p>'; }
+        }
+
+        // --- Handle Article Selection ---
+        async function handleArticleTap(article) {
+            console.log("handleArticleTap çağrıldı:", article.title);
+
+            // Hafıza sızıntılarını önlemek için eski nesne URL'ini iptal et
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+
+            currentArticleData = article; currentCuratedData = null; currentVideoUrl = null; simplePreviewImagePath = null;
+            currentSearchKeywords = []; currentKeywordIndex = 0; currentImageStartIndex = 0; currentImageContextUrl = null;
+            isFetchingImages = false; 
+            document.getElementById('image-loader-sentinel').innerHTML = ''; 
+            setView('select');
+            document.getElementById('preview-headline').innerText = "YZ Metni Aşağıda Oluşturuldu";
+            document.getElementById('preview-description').innerText = "";
+            document.getElementById('preview-caption-text').innerText = "Yapay zeka metni oluşturuluyor...";
+            document.getElementById('image-selection-area').innerHTML = "<p>Arama sorgusu için YZ metni oluşturuluyor...</p>"; document.getElementById('related-articles-list').innerHTML = "<p>İlgili makaleler bulunuyor...</p>";
+            document.getElementById('video-player-container').innerHTML = ''; 
+            document.getElementById('video-display-area').classList.add('hidden'); 
+            document.getElementById('original-image-container').classList.add('hidden');
+            const originalLinkEl = document.getElementById('original-article-link'); originalLinkEl.href = article.link; originalLinkEl.textContent = `Orijinal Makaleyi ${article.source} üzerinde görüntüle`;
+            fetchAiText(article);
+            fetchRelatedArticles(article.title, article.source);
+            fetchVideo(article.title, article.source, article.videoUrl); // Potansiyel RSS video URL'ini ilet
+            if (article.originalImageUrl) { const originalImgEl = document.getElementById('original-image'); const originalImgContainer = document.getElementById('original-image-container'); originalImgEl.src = article.originalImageUrl; originalImgEl.onclick = () => startSimplePreviewPipeline(article.originalImageUrl, article.link); originalImgContainer.classList.remove('hidden'); }
+        }
+
+        // --- Fetch AI Text & Trigger Keyword Extraction ---
+        async function fetchAiText(article) {
+            console.log("fetchAiText fonksiyonu BAŞLADI.");
+            const previewHeadlineEl=document.getElementById('preview-headline'); const previewDescriptionEl=document.getElementById('preview-description'); const previewCaptionEl=document.getElementById('preview-caption-text'); const imageSelectionArea=document.getElementById('image-selection-area');
+            if(!previewHeadlineEl||!previewDescriptionEl||!previewCaptionEl||!imageSelectionArea){console.error("fetchAiText Hatası: Önizleme elemanları bulunamadı!");return;}
+            previewHeadlineEl.innerText = "YZ Metni Aşağıda Oluşturuldu";
+            previewDescriptionEl.innerText = "";
+            previewCaptionEl.innerText = "Yapay zeka metni oluşturuluyor...";
+            imageSelectionArea.innerHTML="<p>Arama sorgusu için YZ metni oluşturuluyor...</p>";
+            console.log("fetchAiText: Başlangıç 'YZ metni oluşturuluyor...' mesajları ayarlandı.");
+            try{
+                console.log("fetchAiText: /api/generate-text isteği gönderiliyor:",article.title);
+                const response=await fetch('/api/generate-text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(article)});
+                console.log("fetchAiText: fetch('/api/generate-text') SONRASI, Durum:",response.status);
+                if(!response.ok){const errorText=await response.text();console.error("fetchAiText: Fetch yanıtı OK değil:",response.status,errorText);throw new Error(`HTTP hatası! ${response.status} - ${errorText}`);}
+                console.log("fetchAiText: Yanıt OK. JSON ayrıştırılıyor...");
+                currentCuratedData=await response.json(); 
+                console.log("fetchAiText: YZ metin yanıtı başarıyla ayrıştırıldı:",currentCuratedData);
+                
+                previewHeadlineEl.innerText = currentCuratedData.headline || "YZ başlık üretemedi."; 
+                previewDescriptionEl.innerText = currentCuratedData.description || "Açıklama yok."; 
+                previewCaptionEl.innerText = (currentCuratedData.caption || "Metin yok.") + `\n\nHaber Kaynağı: ${currentCuratedData.originalSource||'Bilinmiyor'}`; 
+                
+                console.log("fetchAiText: YZ metni arayüze eklendi.");
+                
+                if(currentCuratedData.headline && currentCuratedData.headline !== "YZ Başarısız Oldu"){
+                    console.log("fetchAiText: fetchPrimaryKeywords çağrılıyor...");
+                    fetchPrimaryKeywordsAndStartImageSearch(currentCuratedData.headline, currentCuratedData.description);
+                } else{
+                    imageSelectionArea.innerHTML="<p>YZ metni başarısız oldu, resim aranamıyor.</p>";
+                    console.warn("fetchAiText: YZ başarısız.");
+                }
+            }catch(error){console.error('!!! CATCH HATASI (fetchAiText):',error);previewHeadlineEl.innerText="YZ Metni Oluşturulurken Hata";previewDescriptionEl.innerText="Lütfen başka bir makale deneyin veya sunucu loglarını kontrol edin.";previewCaptionEl.innerText="";imageSelectionArea.innerHTML="<p>YZ metni oluşturulurken hata.</p>";}
+        }
+
+        // --- Fetch Primary Keywords & Start Image Search (FALLBACK LOGIC GÜNCELLENDİ) ---
+        async function fetchPrimaryKeywordsAndStartImageSearch(headline, description) {
+            document.getElementById('image-selection-area').innerHTML = '<p>Anahtar kelimeler çıkarılıyor...</p>';
+            try {
+                console.log("fetchPrimaryKeywords: /api/extract-keywords isteği gönderiliyor");
+                const response = await fetch('/api/extract-keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ headline, description }) });
+                if (!response.ok) throw new Error(`HTTP hatası! durum: ${response.status}`);
+                const data = await response.json();
+                let primaryKeyword = data.keywords; // Bu, curator.js'den gelen sonuç
+
+                // *** BU KRİTİK FALLBACK MANTIĞI ***
+                if (!primaryKeyword) { 
+                    console.warn("[Keywords] Anahtar kelime çıkarma başarısız, makale başlığına dönülüyor."); 
+                    primaryKeyword = currentArticleData.title; // Orijinal makale başlığına dön
+                }
+                
+                console.log(`[Keywords] Alınan anahtar kelime: "${primaryKeyword}", resim araması başlıyor.`);
+                currentSearchKeywords = [primaryKeyword]; 
+                currentKeywordIndex = 0; 
+                currentImageStartIndex = 0;
+                fetchImages(primaryKeyword, 0); 
+            } catch (error) { 
+                console.error("Anahtar kelimeler alınırken hata:", error); 
+                console.warn("[Keywords] Fetch başarısız, makale başlığına dönülüyor."); 
+                let fallbackKeyword = currentArticleData.title; // Orijinal makale başlığına dön
+                currentSearchKeywords = [fallbackKeyword]; 
+                currentKeywordIndex = 0; 
+                currentImageStartIndex = 0; 
+                document.getElementById('image-selection-area').innerHTML = `<p>Anahtar kelime alımı başarısız, başlık kullanılıyor: "${fallbackKeyword}"</p>`; 
+                fetchImages(fallbackKeyword, 0); 
+            }
+        }
+
+        // --- Fetch Alternative Keywords ---
+        async function fetchAlternativeKeywords() {
+            isFetchingImages = true; 
+            const loader = document.getElementById('image-loader-sentinel');
+            if (!currentCuratedData) { alert("Alternatif anahtar kelimeler alınamıyor."); isFetchingImages = false; return; }
+            loader.innerHTML = '<p>Alternatif anahtar kelimeler aranıyor...</p>';
+            try {
+                console.log("fetchAlternativeKeywords: /api/get-alternative-keywords isteği gönderiliyor");
+                const response = await fetch('/api/get-alternative-keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ headline: currentCuratedData.headline, description: currentCuratedData.description, previousKeywords: currentSearchKeywords }) });
+                if (!response.ok) throw new Error(`HTTP hatası! durum: ${response.status}`);
+                const data = await response.json();
+                if (data.keywords) { 
+                    const newKeyword = data.keywords; 
+                    console.log(`[AltKeywords] Alınan alternatif: "${newKeyword}"`); 
+                    currentSearchKeywords.push(newKeyword); 
+                    currentKeywordIndex++; 
+                    currentImageStartIndex = 0; 
+                    fetchImages(newKeyword, 0); // fetchImages, isFetchingImages'i sıfırlayacak
+                }
+                else { 
+                    console.warn("[AltKeywords] Uygun alternatif bulunamadı."); 
+                    loader.innerHTML = '<p>Alternatif anahtar kelime bulunamadı. Yüklenecek başka resim yok.</p>';
+                    isFetchingImages = true; // Sonsuz kaydırmayı durdur
+                }
+            } catch (error) { 
+                console.error("Alternatif anahtar kelimeler alınırken hata:", error); 
+                loader.innerHTML = '<p>Alternatif anahtar kelimeler alınamadı.</p>';
+                isFetchingImages = true; // Sonsuz kaydırmayı durdur
+            }
+        }
+
+	    // --- Fetch Images (UPDATED for Infinite Scroll) ---
+        async function fetchImages(query, startIndex) {
+            isFetchingImages = true; 
+            const area = document.getElementById('image-selection-area');
+            const loader = document.getElementById('image-loader-sentinel');
+
+            if (startIndex === 0) {
+                area.innerHTML = `<p>Resimler aranıyor: "${query}"...</p>`;
+            } else {
+                loader.innerHTML = '<p>Daha fazla resim yükleniyor...</p>';
+            }
+
+            try {
+                console.log(`fetchImages: "${query}" için istek gönderiliyor, başlangıç indeksi ${startIndex}`);
+                const response = await fetch('/api/search-images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: query, startIndex: startIndex }) });
+                if (!response.ok) throw new Error(`HTTP hatası! durum: ${response.status}`);
+                const data = await response.json();
+                const imagesData = data.images || [];
+                console.log(`fetchImages: ${imagesData.length} resim alındı.`);
+                
+                if (startIndex === 0) area.innerHTML = ''; 
+                loader.innerHTML = ''; 
+
+                if (imagesData.length === 0) {
+                    if (startIndex === 0) {
+                        area.innerHTML = `<p>"${query}" için resim bulunamadı.</p>`;
+                    }
+                    loader.innerHTML = '<p>Bu anahtar kelime için başka resim yok. Alternatifler aranıyor...</p>';
+                    fetchAlternativeKeywords(); 
+                }
+                else {
+                    imagesData.forEach((imgData, index) => {
+                         const container = document.createElement('div'); container.className = 'image-container';
+                         const img = document.createElement('img'); img.src = imgData.imageUrl; img.alt = `İlgili Resim ${startIndex + index + 1}`; img.onerror = function() { this.alt = 'Resim yüklenemedi'; this.style.border = '1px solid red'; };
+                         const imageUrlForClick = imgData.imageUrl; const contextUrlForClick = imgData.contextUrl;
+                         img.onclick = () => { console.log(`Resim tıklandı! URL: ${imageUrlForClick}, İçerik: ${contextUrlForClick}`); startSimplePreviewPipeline(imageUrlForClick, contextUrlForClick); };
+                         const link = document.createElement('a'); link.href = imgData.contextUrl || '#'; link.textContent = 'Kaynak Sayfayı Görüntüle'; link.target = '_blank'; link.rel = 'noopener noreferrer'; if (!imgData.contextUrl) link.style.display = 'none';
+                         const keywordSpan = document.createElement('span'); keywordSpan.className = 'image-keyword'; keywordSpan.textContent = `Anahtar Kelime: ${imgData.query || 'N/A'}`;
+                         const dimensionsSpan = document.createElement('span'); dimensionsSpan.className = 'image-dimensions'; dimensionsSpan.textContent = (imgData.width && imgData.height) ? `${imgData.width} x ${imgData.height}` : `Boyut N/A`;
+                         container.appendChild(img); container.appendChild(link); container.appendChild(keywordSpan); container.appendChild(dimensionsSpan);
+                         area.appendChild(container);
+                     });
+                    console.log("fetchImages: Resimlerin render edilmesi bitti.");
+                    isFetchingImages = false; // Sonraki fetch'e izin ver
+                 }
+            } catch (error) { 
+                console.error('Resimler alınırken hata:', error); 
+                if (startIndex === 0) area.innerHTML = `<p>"${query}" için resim araması başarısız.</p>`;
+                loader.innerHTML = '<p>Resim araması başarısız.</p>';
+                isFetchingImages = false; // Kaydırmada yeniden denemeye izin ver
+            }
+        }
+
+        // --- Fetch Related Articles ---
+        async function fetchRelatedArticles(title, source) {
+            const list = document.getElementById('related-articles-list');
+            if (!list) { console.error("fetchRelatedArticles Hatası: Liste elemanı bulunamadı!"); return; }
+            list.innerHTML = "<p>İlgili makaleler bulunuyor...</p>";
+            console.log(`fetchRelatedArticles: "${title}" (${source}) ile ilgili makaleler aranıyor`);
+
+            try {
+                const response = await fetch('/api/find-related-articles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title, source: source })
+                });
+                console.log(`fetchRelatedArticles: Yanıt Durumu: ${response.status}`);
+
+                if (!response.ok) throw new Error(`HTTP hatası! durum: ${response.status}`);
+
+                const data = await response.json();
+                console.log("fetchRelatedArticles: Alınan veri:", data);
+
+                const relatedArticles = data.relatedArticles || [];
+
+                list.innerHTML = '';
+                if (relatedArticles.length === 0) {
+                    list.innerHTML = "<p>Başka kaynak bulunamadı.</p>";
+                    console.log("fetchRelatedArticles: Yanıtta ilgili makale bulunamadı.");
+                    return;
+                }
+                console.log(`fetchRelatedArticles: ${relatedArticles.length} makale render ediliyor.`);
+
+                relatedArticles.forEach(article => {
+                    if (currentArticleData && article.link === currentArticleData.link) return;
+
+                    const el = document.createElement('div');
+                    el.className = 'related-article';
+                    el.innerHTML = `<a href="${article.link}" target="_blank" rel="noopener noreferrer">${article.title}</a><p>${article.source}</p>`;
+                    list.appendChild(el);
+                });
+                console.log("fetchRelatedArticles: Render etme bitti.");
+
+            } catch (error) {
+                console.error('!!! CATCH HATASI (ilgili makaleler):', error);
+                list.innerHTML = "<p style='color: red;'>İlgili makale araması başarısız.</p>";
+            }
+        }
+
+        // --- Fetch Video ---
+        async function fetchVideo(title, source, rssVideoUrl) {
+            let videoUrlToDisplay = rssVideoUrl;
+            if (!videoUrlToDisplay) {
+                console.log("[Video] RSS'te video yok, online aranıyor...");
+                try {
+                    const response = await fetch('/api/find-video', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: title, source: source })
+                    });
+                    if (!response.ok) throw new Error(`HTTP hatası! durum: ${response.status}`);
+                    const data = await response.json();
+                    videoUrlToDisplay = data.videoUrl;
+                    console.log("[Video] Online arama sonucu:", videoUrlToDisplay);
+                } catch (error) { console.error('İlgili video alınırken hata:', error); videoUrlToDisplay = null; }
+            } else { console.log("[Video] RSS'ten video URL'i kullanılıyor:", videoUrlToDisplay); }
+
+            if (videoUrlToDisplay) {
+                currentVideoUrl = videoUrlToDisplay;
+                displayVideo(videoUrlToDisplay, 'video-player-container');
+            } else {
+                console.log("[Video] RSS veya aramadan video bulunamadı.");
+                currentVideoUrl = null; // Bulunamadıysa null olduğundan emin ol
+            }
+        }
+
+        // --- Display Video ---
+        function displayVideo(videoUrl, containerId) {
+             let videoElement = null;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            const youtubeMatch = videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+            if (youtubeMatch && youtubeMatch[1]) {
+                 const videoId = youtubeMatch[1];
+                 console.log(`[Video] YouTube videosu gömülüyor (${containerId}):`, videoId);
+                 videoElement = document.createElement('iframe');
+                 videoElement.src = `https://www.youtube.com/embed/${videoId}`;
+                 videoElement.frameborder = "0";
+                 videoElement.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+                 videoElement.allowfullscreen = true;
+            } else if (videoUrl.match(/\.(mp4|webm|ogg)$/i)) {
+                  console.log(`[Video] Doğrudan video linki gömülüyor (${containerId}):`, videoUrl);
+                  videoElement = document.createElement('video');
+                  videoElement.src = videoUrl;
+                  videoElement.controls = true;
+                  videoElement.preload = "metadata";
+             } else {
+                  console.warn(`[Video] Bilinmeyen video URL tipi gömülemiyor (${containerId}):`, videoUrl);
+                  container.innerHTML = `<p>Video bulundu: <a href="${videoUrl}" target="_blank" rel="noopener noreferrer">${videoUrl}</a> (Oynatıcı gömülemiyor)</p>`;
+              }
+            if (videoElement) { container.appendChild(videoElement); }
+            
+             if (containerId === 'video-player-container') {
+                const simplePreview = document.getElementById('simple-preview-view');
+                if(!simplePreview.classList.contains('hidden')) { // Sadece önizleme görünümü aktifse göster
+                    document.getElementById('video-display-area').classList.remove('hidden');
+                }
+            }
+        }
+
+        // --- Call Simple Preview API ---
+        async function startSimplePreviewPipeline(mediaUrl, contextUrl = null) {
+             console.log(`startSimplePreviewPipeline çağrıldı: URL: ${mediaUrl}, İçerik: ${contextUrl}`);
+             const isVideo = currentVideoUrl && mediaUrl === currentVideoUrl; const isImageUrl = !isVideo;
+             console.log(`startSimplePreviewPipeline: Video mu? ${isVideo}, Resim mi? ${isImageUrl}`);
+             
+             currentVideoUrl = isVideo ? mediaUrl : null; 
+             simplePreviewImagePath = null; 
+             currentImageContextUrl = isImageUrl ? contextUrl : null;
+             
+            // Varsa eski nesne URL'ini iptal et
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+
+             try {
+                  if (isImageUrl) {
+                      if (!currentCuratedData || !currentCuratedData.caption) { 
+                           alert("YZ metin verisi hazır değil. Önizleme oluşturulamıyor.");
+                           return;
+                       }
+                      alert("Önizleme resmi oluşturuluyor...");
+                      console.log("startSimplePreviewPipeline: Resim oluşturma ile devam ediliyor.");
+                      
+                      const socialCaption = currentCuratedData.caption;
+                      const socialHeadline = socialCaption.split('\n\n')[0].trim(); 
+                      console.log(`startSimplePreviewPipeline: Çıkarılan sosyal medya başlığı: "${socialHeadline}"`);
+                      
+                      console.log("startSimplePreviewPipeline: /api/generate-simple-preview isteği gönderiliyor");
+                      const response = await fetch('/api/generate-simple-preview', { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json' }, 
+                          body: JSON.stringify({ 
+                              imageUrl: mediaUrl, 
+                              overlayText: socialHeadline
+                            }) 
+                        });
+                      console.log(`startSimplePreviewPipeline: Yanıt alındı. Durum: ${response.status}`);
+                      
+                      if (!response.ok) { 
+                          const errorData = await response.json(); // Hatayı ayrıştırmayı dene
+                          console.error(`startSimplePreviewPipeline: Hata yanıtı: ${response.status}`, errorData.error); 
+                          throw new Error(`Sunucu hatası: ${errorData.error || response.status}`); 
+                      }
+
+                      // Geriye bir resim alıp almadığımızı kontrol et
+                      const contentType = response.headers.get("content-type");
+                      if (contentType && contentType.includes("image/png")) {
+                           console.log("startSimplePreviewPipeline: image/png blob alındı.");
+                           const imageBlob = await response.blob();
+                           simplePreviewImagePath = URL.createObjectURL(imageBlob); // Nesne URL'i oluştur
+                           currentObjectUrl = simplePreviewImagePath; // Hafıza yönetimi için sakla
+                           console.log(`startSimplePreviewPipeline: Nesne URL'i oluşturuldu: ${simplePreviewImagePath}`);
+                      } else {
+                           console.error('startSimplePreviewPipeline: Geçersiz veri alındı (resim değil).');
+                           throw new Error('Önizleme oluşturma başarısız veya geçersiz yanıt tipi.');
+                      }
+
+                  }
+                  else if (isVideo) {
+                      // Video durumu
+                      alert("Video önizlemesi hazırlanıyor...");
+                      console.log("startSimplePreviewPipeline: Video önizlemesi ayarlanıyor.");
+                      displayVideo(currentVideoUrl, 'simple-preview-video-player'); 
+                  }
+                  
+                  // Bir resim yolumuz VEYA video URL'imiz varsa önizlemeyi göster
+                  if (simplePreviewImagePath || currentVideoUrl) {
+                      console.log("startSimplePreviewPipeline: Görünüm 'simple-preview' olarak ayarlanıyor.");
+                      setView('simple-preview'); // Bu fonksiyon elemanları gösterme/gizlemeyi halleder
+                      if (simplePreviewImagePath) {
+                           document.getElementById('simple-preview-image').src = simplePreviewImagePath;
+                      }
+                  }
+                  else { console.warn("startSimplePreviewPipeline: Resim/video yolu ayarlanmadı."); alert('Önizleme oluşturma başarısız.'); }
+             } catch (error) { console.error('!!! CATCH HATASI (simple preview pipeline):', error); alert(`Önizleme oluşturulamadı: ${error.message}.`); simplePreviewImagePath = null; currentVideoUrl = null; }
+        }
+
+        // --- Populate Caption Display ---
+        function populateCaptionDisplay() {
+             console.log("populateCaptionDisplay: Fonksiyon çağrıldı.");
+             const captionTextArea = document.getElementById('caption-text-area');
+             if (!captionTextArea) { console.error("populateCaptionDisplay Hatası: Metin alanı elemanı bulunamadı!"); return; }
+             console.log("populateCaptionDisplay: currentCuratedData:", currentCuratedData);
+             console.log("populateCaptionDisplay: currentImageContextUrl:", currentImageContextUrl);
+             
+             if (currentCuratedData && currentCuratedData.caption && currentCuratedData.headline !== "YZ Başarısız Oldu") {
+                 const caption = currentCuratedData.caption;
+                 let visualSourceLine = "";
+                 if (currentImageContextUrl) {
+                     try { const urlObject = new URL(currentImageContextUrl); const domain = urlObject.hostname.replace(/^www\./, ''); visualSourceLine = `Görsel Kaynağı: ${domain}`; } catch (e) { console.warn("İçerik URL'i ayrıştırılamadı:", currentImageContextUrl); visualSourceLine = `Görsel Kaynağı: (Kaynak sayfaya bakın)`; }
+                 } else if (currentVideoUrl) {
+                     try { const urlObject = new URL(currentVideoUrl); const domain = urlObject.hostname.replace(/^www\./, ''); visualSourceLine = `Görsel Kaynağı: ${domain}`; } catch (e) { console.warn("Video URL'i ayrıştırılamadı:", currentVideoUrl); visualSourceLine = `Görsel Kaynağı: (Video kaynağına bakın)`; }
+                 }
+                 
+                 const fullText = caption + (visualSourceLine ? `\n\n${visualSourceLine}` : '');
+
+                 captionTextArea.value = fullText;
+                 console.log("populateCaptionDisplay: Metin alanı YZ sosyal metni ve görsel kaynağı ile dolduruldu.");
+             
+             } else {
+                 captionTextArea.value = "YZ Metin verisi mevcut değil veya oluşturma başarısız oldu.";
+                 console.log("populateCaptionDisplay: Hata mesajı ile dolduruldu.");
+             }
+        }
+        // --- Handle Copy Caption ---
+        async function handleCopyCaption() {
+            const captionTextArea = document.getElementById('caption-text-area'); try { await navigator.clipboard.writeText(captionTextArea.value); alert("Metin kopyalandı!"); } catch (err) { console.error('Kopyalama başarısız:', err); alert("Kopyalama başarısız."); captionTextArea.select(); }
+        }
+        
+        // --- Share Button Logic ---
+        async function handleShare() {
+            if (!simplePreviewImagePath && !currentVideoUrl) { alert("Oluşturulmuş resim/video yok."); return; } if (!currentCuratedData) { alert("YZ metni hazır değil."); return; } const shareTitle = (currentCuratedData.headline || "Haber Gönderisi").replace(/^\*\*|\*\*$/g, ''); const shareText = document.getElementById('caption-text-area').value; let shareData = { title: shareTitle, text: shareText, };
+            if (navigator.share) { 
+                try { 
+                    if (simplePreviewImagePath && navigator.canShare) { 
+                        const imageUrl = simplePreviewImagePath; 
+                        console.log(`Paylaşım için resim çekiliyor: ${imageUrl}`); 
+                        const response = await fetch(imageUrl); 
+                        if (!response.ok) throw new Error(`Resim çekilemedi: ${response.statusText}`); 
+                        const blob = await response.blob(); 
+                        const fileName = `${shareTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`; 
+                        const file = new File([blob], fileName, { type: 'image/png' }); 
+                        if (navigator.canShare({ files: [file] })) { 
+                            shareData.files = [file]; 
+                            console.log("Resim dosyası/metin paylaşılıyor..."); 
+                        } else { 
+                            console.warn("Resim dosyası paylaşılamıyor, metin/URL paylaşılıyor."); 
+                            shareData.url = imageUrl; 
+                        } 
+                    } else if (currentVideoUrl) { 
+                        console.log("Metin/video URL'i paylaşılıyor..."); 
+                        shareData.url = currentVideoUrl; 
+                    } else { 
+                        console.log("Sadece metin paylaşılıyor..."); 
+                    } 
+                    await navigator.share(shareData); 
+                    console.log('Web Share API ile başarılı paylaşım'); 
+                    alert('Başarıyla paylaşıldı!'); 
+                } catch (err) { 
+                    console.error('Web Share API sırasında hata:', err); 
+                    if (err.name === 'AbortError') { 
+                        console.log('Paylaşım iptal edildi.'); 
+                    } else { 
+                        alert(`Paylaşım başarısız: ${err.message}`); 
+                        handleCopyCaption(); 
+                    } 
+                } 
+            }
+            else { console.log("Web Share API desteklenmiyor."); alert("Doğal paylaşım desteklenmiyor. Metin kopyalandı."); handleCopyCaption(); }
+        }
+        
+        // --- Download Button Logic ---
+        function handleDownload() {
+            let didDownload = false; 
+            if (currentVideoUrl) { 
+                alert("Video URL'i açılıyor..."); 
+                window.open(currentVideoUrl, '_blank'); 
+                didDownload = true; 
+            } else if (simplePreviewImagePath) { 
+                if (!currentCuratedData) { alert("Dosya adı için YZ verisi gerekiyor."); return; } 
+                const link = document.createElement('a'); 
+                link.href = simplePreviewImagePath; 
+                const cleanedHeadlineText = (currentCuratedData?.headline || 'haber-gonderisi').replace(/^\*\*|\*\*$/g, '').replace(/[^a-z0-9]/gi, '_').toLowerCase(); 
+                link.download = `${cleanedHeadlineText}.png`; 
+                document.body.appendChild(link); 
+                link.click(); 
+                document.body.removeChild(link); 
+                didDownload = true; 
+            } else { 
+                alert("İndirilecek resim/video yok."); 
+            }
+        }
+
+    </script>
+</body>
+</html>
