@@ -1,4 +1,4 @@
-// curator.js (GÜNCELLENDİ: Daha güvenilir ve akıllı YZ istemleri)
+// curator.js (GÜNCELLENDİ: YZ API anahtarı düzeltildi)
 
 require('dotenv').config();
 const { GoogleGenAI } = require('@google/genai');
@@ -10,7 +10,10 @@ const fetch = require('node-fetch');
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const model = 'gemini-2.5-flash';
 const customsearch = google.customsearch('v1');
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY; // Doğru API anahtarını kullan
+
+// *** BU DÜZELTME ***
+// Custom search için GOOGLE_API_KEY kullan, GEMINI_API_KEY değil
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY; 
 const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX;
 
 // --- YARDIMCI FONKSİYON: XML/HTML karakterlerinden kaçınma ---

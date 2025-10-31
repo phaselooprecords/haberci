@@ -1,0 +1,5 @@
+# Bağımlılıklar
+node_modules
+
+# Çevre (environment) dosyaları
+.env

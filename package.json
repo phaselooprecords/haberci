@@ -1,0 +1,25 @@
+{
+  "name": "haber-kuratoru",
+  "version": "1.0.0",
+  "description": "YZ destekli haber küratörü ve sosyal medya hazırlama aracı.",
+  "main": "server.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.26.0",
+    "body-parser": "^1.20.2",
+    "cron": "^3.1.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-basic-auth": "^1.2.1",
+    "googleapis": "^134.0.0",
+    "mongodb": "^6.5.0",
+    "node-fetch": "^2.7.0",
+    "rss-parser": "^3.13.0",
+    "sharp": "^0.33.3"
+  }
+}
