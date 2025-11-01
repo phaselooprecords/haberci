@@ -55,6 +55,9 @@
         button#download-preview-btn { background-color: #17a2b8; margin-right: 10px; }
         button.back-button { background-color: #6c757d; margin-left: 10px;}
         button#share-preview-btn { background-color: #007bff; margin-right: 10px;}
+        /* --- NEW BUTTON STYLE --- */
+        button#share-link-btn { background-color: #28a745; margin-right: 10px; }
+        button#share-link-btn:hover { background-color: #218838; }
         button#copy-caption-btn { background-color: #6f42c1; }
         button#copy-caption-btn:hover { background-color: #5a2e9b; }
         #simple-preview-image { width: 100%; max-width: 600px; margin: auto; display: block; margin-bottom: 20px; }
@@ -114,6 +117,7 @@
             </div>
 
             <button id="share-preview-btn">Gönder</button>
+            <button id="share-link-btn">Paylaş ve Bio'ya Ekle</button>
             <button id="download-preview-btn">Resmi İndir</button>
             <button onclick="setView('select')" class="back-button">Seçime Geri Dön</button>
         </div>
@@ -144,6 +148,9 @@
             document.getElementById('download-preview-btn').onclick = () => handleDownload();
             document.getElementById('share-preview-btn').onclick = () => handleShare();
             document.getElementById('copy-caption-btn').onclick = () => handleCopyCaption();
+
+            // --- *** NEW BUTTON LISTENER *** ---
+            document.getElementById('share-link-btn').onclick = () => handleShareAndLink();
         });
 
         // --- Infinite Scroll Setup ---
@@ -609,13 +616,11 @@
              } catch (error) { console.error('!!! CATCH HATASI (simple preview pipeline):', error); alert(`Önizleme oluşturulamadı: ${error.message}.`); simplePreviewImagePath = null; currentVideoUrl = null; }
         }
 
-        // --- Populate Caption Display ---
+        // --- Populate Caption Display (*** UPDATED ***) ---
         function populateCaptionDisplay() {
              console.log("populateCaptionDisplay: Fonksiyon çağrıldı.");
              const captionTextArea = document.getElementById('caption-text-area');
              if (!captionTextArea) { console.error("populateCaptionDisplay Hatası: Metin alanı elemanı bulunamadı!"); return; }
-             console.log("populateCaptionDisplay: currentCuratedData:", currentCuratedData);
-             console.log("populateCaptionDisplay: currentImageContextUrl:", currentImageContextUrl);
              
              if (currentCuratedData && currentCuratedData.caption && currentCuratedData.headline !== "YZ Başarısız Oldu") {
                  const caption = currentCuratedData.caption;
@@ -626,19 +631,72 @@
                      try { const urlObject = new URL(currentVideoUrl); const domain = urlObject.hostname.replace(/^www\./, ''); visualSourceLine = `Görsel Kaynağı: ${domain}`; } catch (e) { console.warn("Video URL'i ayrıştırılamadı:", currentVideoUrl); visualSourceLine = `Görsel Kaynağı: (Video kaynağına bakın)`; }
                  }
                  
-                 const fullText = caption + (visualSourceLine ? `\n\n${visualSourceLine}` : '');
+                 // --- *** NEW TEXT ADDED HERE (TRANSLATED) *** ---
+                 const bioLinkText = "Daha fazla bilgi için, link bio'da...";
+                 const fullText = caption + 
+                                  (visualSourceLine ? `\n\n${visualSourceLine}` : '') +
+                                  `\n\n${bioLinkText}`; // <-- Appended text
+                 // --- *** END OF CHANGE *** ---
 
                  captionTextArea.value = fullText;
-                 console.log("populateCaptionDisplay: Metin alanı YZ sosyal metni ve görsel kaynağı ile dolduruldu.");
-             
              } else {
                  captionTextArea.value = "YZ Metin verisi mevcut değil veya oluşturma başarısız oldu.";
-                 console.log("populateCaptionDisplay: Hata mesajı ile dolduruldu.");
              }
         }
         // --- Handle Copy Caption ---
         async function handleCopyCaption() {
             const captionTextArea = document.getElementById('caption-text-area'); try { await navigator.clipboard.writeText(captionTextArea.value); alert("Metin kopyalandı!"); } catch (err) { console.error('Kopyalama başarısız:', err); alert("Kopyalama başarısız."); captionTextArea.select(); }
+        }
+        
+        // --- *** NEW FUNCTION: Publish Link to Bio *** ---
+        async function publishLinkToBio() {
+            if (!currentArticleData || !currentCuratedData) {
+                alert("Makale verisi hazır değil.");
+                throw new Error("Makale verisi hazır değil.");
+            }
+
+            // Use the AI-generated headline as the title, but clean it of markdown
+            const linkTitle = (currentCuratedData.headline || "Yeni Makale").replace(/^\*\*|\*\*$/g, '');
+            const linkUrl = currentArticleData.link;
+
+            console.log(`Bio'ya yayınlanıyor: "${linkTitle}" -> ${linkUrl}`);
+
+            const response = await fetch('/api/links/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: linkTitle,
+                    link: linkUrl
+                })
+            });
+
+            if (!response.ok) {
+                // Try to get error message from server
+                let errorMsg = "Bio'ya link eklenemedi.";
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) {
+                    // Ignore if response is not JSON
+                }
+                throw new Error(errorMsg);
+            }
+
+            const result = await response.json();
+            console.log("Link başarıyla yayınlandı:", result.message);
+        }
+        
+        // --- *** NEW FUNCTION: Share and Link *** ---
+        async function handleShareAndLink() {
+            // 1. Publish the link to the bio
+            try {
+                await publishLinkToBio();
+                // 2. Trigger the normal share action
+                handleShare();
+            } catch (error) {
+                console.error("Link yayınlanamadı:", error);
+                alert(`Link yayınlanırken hata: ${error.message}. Paylaşım iptal edildi.`);
+            }
         }
         
         // --- Share Button Logic ---
@@ -647,6 +705,7 @@
             if (navigator.share) { 
                 try { 
                     if (simplePreviewImagePath && navigator.canShare) { 
+                        // simplePreviewImagePath is now an object URL (e.g., "blob:http://...")
                         const imageUrl = simplePreviewImagePath; 
                         console.log(`Paylaşım için resim çekiliyor: ${imageUrl}`); 
                         const response = await fetch(imageUrl); 
@@ -669,13 +728,13 @@
                     } 
                     await navigator.share(shareData); 
                     console.log('Web Share API ile başarılı paylaşım'); 
-                    alert('Başarıyla paylaşıldı!'); 
                 } catch (err) { 
                     console.error('Web Share API sırasında hata:', err); 
                     if (err.name === 'AbortError') { 
                         console.log('Paylaşım iptal edildi.'); 
                     } else { 
-                        alert(`Paylaşım başarısız: ${err.message}`); 
+                        // Fallback to copy caption if share fails
+                        alert(`Paylaşım başarısız: ${err.message}. Metin kopyalandı.`); 
                         handleCopyCaption(); 
                     } 
                 } 
