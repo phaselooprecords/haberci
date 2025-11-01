@@ -1,4 +1,4 @@
-// server.js (GÜNCELLENDİ: Kümeleme (cluster) kaldırıldı)
+// server.js (GÜNCELLENDİ: Link silme API'ı eklendi)
 
 // 1. Modülleri içe aktar
 const express = require('express');
@@ -34,7 +34,7 @@ const adminAuth = basicAuth({
 
 // --- API ROTALARI (Uç Noktalar) ---
 
-// Kayıtlı tüm haber makalelerini çek
+// ... ( /api/news, /api/generate-text, vb. tüm mevcut API rotalarınız değişmeden kalır) ...
 app.get('/api/news', async (req, res) => {
     console.log("--> /api/news için istek alındı");
     try {
@@ -46,8 +46,6 @@ app.get('/api/news', async (req, res) => {
         res.status(500).json({ error: 'Makaleler alınamadı.' });
     }
 });
-
-// Uç Nokta 1: YZ Metni Oluştur
 app.post('/api/generate-text', async (req, res) => {
     const article = req.body;
     if (!article || !article.title) {
@@ -61,8 +59,6 @@ app.post('/api/generate-text', async (req, res) => {
         res.status(500).json({ error: 'Metin oluşturma başarısız.' });
     }
 });
-
-// Uç Nokta 2: Anahtar Kelimeleri Çıkar
 app.post('/api/extract-keywords', async (req, res) => {
     const { headline, description } = req.body;
     if (!headline || !description) {
@@ -76,8 +72,6 @@ app.post('/api/extract-keywords', async (req, res) => {
         res.status(500).json({ error: 'Anahtar kelime çıkarma başarısız.' });
     }
 });
-
-// Uç Nokta 3: Alternatif Anahtar Kelimeler Al
 app.post('/api/get-alternative-keywords', async (req, res) => {
     const { headline, description, previousKeywords } = req.body;
     if (!headline || !description) {
@@ -92,9 +86,6 @@ app.post('/api/get-alternative-keywords', async (req, res) => {
         res.status(500).json({ error: 'Alternatif anahtar kelime çıkarma başarısız.' });
     }
 });
-
-
-// Uç Nokta 4: Resim Ara
 app.post('/api/search-images', async (req, res) => {
     const { query, startIndex } = req.body;
     if (!query) {
@@ -109,8 +100,6 @@ app.post('/api/search-images', async (req, res) => {
         res.status(500).json({ error: 'Resim arama başarısız.' });
     }
 });
-
-// Uç Nokta 5: İlgili Makaleleri Bul
 app.post('/api/find-related-articles', async (req, res) => {
     const { title, source } = req.body;
     if (!title || !source) {
@@ -124,8 +113,6 @@ app.post('/api/find-related-articles', async (req, res) => {
         res.status(500).json({ error: 'İlgili makale arama başarısız.' });
     }
 });
-
-// Uç Nokta 6: Video Bul
 app.post('/api/find-video', async (req, res) => {
     const { title, source } = req.body;
     if (!title || !source) {
@@ -139,23 +126,17 @@ app.post('/api/find-video', async (req, res) => {
         res.status(500).json({ error: 'Video arama başarısız.' });
     }
 });
-
-// Basit Önizleme Resmi Oluşturma
 app.post('/api/generate-simple-preview', async (req, res) => {
     const { imageUrl, overlayText } = req.body; 
     if (!imageUrl || !overlayText) {
         return res.status(400).json({ error: 'Önizleme için eksik veri.' });
     }
     try {
-        // Bu fonksiyon artık bir buffer veya null döndürüyor
         const imageBuffer = await curator.generateSimplePreviewImage(imageUrl, overlayText); 
-        
         if (imageBuffer) {
-            // Doğru içerik tipini ayarla ve buffer'ı doğrudan gönder
             res.set('Content-Type', 'image/png');
             res.send(imageBuffer);
         } else {
-            // Buffer null ise (oluşturma başarısız) 500 hatası gönder
             res.status(500).json({ error: 'Önizleme oluşturma sunucuda başarısız oldu.' });
         }
     } catch (error) {
@@ -163,16 +144,15 @@ app.post('/api/generate-simple-preview', async (req, res) => {
         res.status(500).json({ error: 'Dahili sunucu hatası.' });
     }
 });
-
-// Sosyal Medya Paylaşımı (MOCK-UP)
 app.post('/api/share', async (req, res) => {
-    const { imagePath, caption, platform } = req.body;
-    console.log(`\n*** MOCK PAYLAŞIM İSTEĞİ (${platform}) ***\n`);
-    res.json({ success: true, message: `${platform} platformuna paylaşım simüle edildi!` });
+    console.log(`\n*** MOCK PAYLAŞIM İSTEĞİ ***\n`);
+    res.json({ success: true, message: `Paylaşım simüle edildi!` });
 });
 
+// --- Herkese Açık Link API Rotaları ---
+
 // Yeni bir bağlantı ekle (yönetici panelinden)
-app.post('/api/links/add', async (req, res) => {
+app.post('/api/links/add', adminAuth, async (req, res) => {
     console.log("--> /api/links/add için istek alındı");
     const { title, link } = req.body;
     if (!title || !link) {
@@ -199,11 +179,28 @@ app.get('/api/links/get', async (req, res) => {
     }
 });
 
+// *** YENİ: Link Silme Uç Noktası ***
+app.delete('/api/links/delete/:id', adminAuth, async (req, res) => {
+    const linkId = req.params.id;
+    console.log(`--> /api/links/delete/${linkId} için istek alındı`);
+    try {
+        const result = await db.deleteLink(linkId);
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ success: false, error: 'Link bulunamadı.' });
+        }
+        res.json({ success: true, message: 'Link başarıyla silindi.' });
+    } catch (error) {
+        console.error("!!! HATA (/api/links/delete):", error);
+        res.status(500).json({ success: false, error: 'Link silinemedi.' });
+    }
+});
+
+
 // --- SAYFA YÖNLENDİRME ---
 
 // Herkese açık kök dizin: Herkese açık "link bio" sayfasını sunar
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'links.html'));
+    res.sendFile(path.join(__dirname, 'public', 'links.html')); // veya 'homepage.html'
 });
 
 // Yönetici paneli: Parola korumalı özel küratör uygulamasını sunar
@@ -215,7 +212,6 @@ app.get('/admin', adminAuth, (req, res) => {
 });
 
 // --- SUNUCU BAŞLATMA FONKSİYONU ---
-// Bu fonksiyon artık tek bir işlem tarafından çalıştırılıyor
 async function startApp() {
     try {
         await db.connectDB();
@@ -234,5 +230,4 @@ async function startApp() {
 }
 
 // --- SUNUCU BAŞLATMAYI TETİKLE ---
-// Artık kümeleme mantığı yok, sadece uygulamayı çalıştır
 startApp();

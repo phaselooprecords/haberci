@@ -1,7 +1,7 @@
-// database.js (Bağlantı fonksiyonlarını içerir)
+// database.js (GÜNCELLENDİ: Link silme fonksiyonu eklendi)
 
 require('dotenv').config(); 
-const { MongoClient } = require('mongodb'); 
+const { MongoClient, ObjectId } = require('mongodb'); // <-- ObjectId eklendi
 
 // .env dosyasından değişkenleri al
 const uri = process.env.MONGO_URI; 
@@ -28,7 +28,7 @@ async function connectDB() {
     }
 }
 
-// --- TEMEL OPERASYONLAR ---
+// --- TEMEL OPERASYONLAR ('articles' koleksiyonu) ---
 
 // Bir haber makalesi dizisini 'articles' koleksiyonuna kaydetme fonksiyonu
 async function insertArticles(articles) {
@@ -64,11 +64,10 @@ async function getAllArticles() {
     return await collection.find({}).sort({ pubDate: -1 }).toArray();
 }
 
-// --- "BAĞLANTILARIM" İÇİN FONKSİYONLAR ---
+// --- "BAĞLANTILARIM" İÇİN FONKSİYONLAR ('links' koleksiyonu) ---
 
 /**
  * 'links' koleksiyonuna yeni bir bağlantı ekler.
- * Yinelenen bağlantıları önlemek için upsert kullanır.
  */
 async function addLink(title, link) {
     if (!db) {
@@ -77,9 +76,9 @@ async function addLink(title, link) {
     const collection = db.collection('links');
     try {
         const result = await collection.updateOne(
-            { link: link }, // Yinelenmeyi önlemek için bağlantıya göre filtrele
-            { $set: { title: title, link: link, createdAt: new Date() } }, // Veriyi ayarla
-            { upsert: true } // Yoksa ekle
+            { link: link }, 
+            { $set: { title: title, link: link, createdAt: new Date() } },
+            { upsert: true } 
         );
         if (result.upsertedCount > 0) {
             console.log(`[DB] Yeni bağlantı eklendi: ${title}`);
@@ -88,12 +87,12 @@ async function addLink(title, link) {
         }
     } catch (error) {
         console.error("[DB HATA] Bağlantı eklenemedi:", error.message);
-        throw error; // server.js tarafından yakalanması için hatayı tekrar fırlat
+        throw error; 
     }
 }
 
 /**
- * 'links' koleksiyonundan tüm bağlantıları en yeniden eskiye doğru sıralı olarak alır.
+ * 'links' koleksiyonundan tüm bağlantıları alır.
  */
 async function getAllLinks() {
     if (!db) {
@@ -103,6 +102,30 @@ async function getAllLinks() {
     return await collection.find({}).sort({ createdAt: -1 }).toArray();
 }
 
+/**
+ * *** YENİ FONKSİYON ***
+ * 'links' koleksiyonundan ID'ye göre bir linki siler.
+ */
+async function deleteLink(linkId) {
+    if (!db) {
+        throw new Error("Veritabanı bağlı değil.");
+    }
+    const collection = db.collection('links');
+    try {
+        // MongoDB'nin _id'si bir ObjectId nesnesi olmalıdır
+        const result = await collection.deleteOne({ _id: new ObjectId(linkId) });
+        console.log(`[DB] Link silindi, silinen sayı: ${result.deletedCount}`);
+        return result;
+    } catch (error) {
+        console.error("[DB HATA] Link silinemedi:", error.message);
+        if (error.message.includes("Argument passed in must be a string of 12 bytes")) {
+            console.error("Hata: Geçersiz Link ID formatı.");
+            return { deletedCount: 0 }; // Geçersiz ID ise 0 döndür
+        }
+        throw error;
+    }
+}
+
 
 // --- DIŞA AKTARMALAR ---
 module.exports = {
@@ -110,5 +133,6 @@ module.exports = {
     insertArticles,
     getAllArticles,
     addLink,
-    getAllLinks
+    getAllLinks,
+    deleteLink // <-- YENİ
 };
