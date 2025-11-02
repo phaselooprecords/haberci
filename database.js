@@ -1,11 +1,17 @@
-// database.js (GÜNCELLENDİ: Link silme fonksiyonu eklendi)
+// database.js (GÜNCELLENDİ: Koleksiyon adları projeye özel hale getirildi)
 
 require('dotenv').config(); 
-const { MongoClient, ObjectId } = require('mongodb'); // <-- ObjectId eklendi
+const { MongoClient, ObjectId } = require('mongodb'); // <-- ObjectId zaten mevcuttu
 
 // .env dosyasından değişkenleri al
 const uri = process.env.MONGO_URI; 
-const dbName = "newsCuratorDB"; // Haber DB'sini kullan
+const dbName = "newsCuratorDB"; // Ana veritabanı adı
+
+// --- İZOLASYON GÜNCELLEMESİ ---
+// Koleksiyon adlarını bu projeye özel (Haberci) olarak ayarla
+const ARTICLES_COLLECTION = 'haberci_articles';
+const LINKS_COLLECTION = 'haberci_links';
+// --- GÜNCELLEME SONU ---
 
 if (!uri) {
     throw new Error("MONGO_URI ortam değişkeni ayarlanmamış. .env dosyanızı kontrol edin.");
@@ -28,14 +34,14 @@ async function connectDB() {
     }
 }
 
-// --- TEMEL OPERASYONLAR ('articles' koleksiyonu) ---
+// --- 'haberci_articles' KOLEKSİYONU OPERASYONLARI ---
 
-// Bir haber makalesi dizisini 'articles' koleksiyonuna kaydetme fonksiyonu
+// Bir haber makalesi dizisini 'haberci_articles' koleksiyonuna kaydetme fonksiyonu
 async function insertArticles(articles) {
     if (!db) {
         throw new Error("Veritabanı bağlı değil.");
     }
-    const collection = db.collection('articles');
+    const collection = db.collection(ARTICLES_COLLECTION); // <-- Yeni adı kullan
 
     const operations = articles.map(article => ({
         updateOne: {
@@ -48,7 +54,7 @@ async function insertArticles(articles) {
     if (operations.length > 0) {
         try {
             const result = await collection.bulkWrite(operations);
-            console.log(`[DB] Eklendi/Güncellendi: ${result.upsertedCount + result.modifiedCount} makale.`);
+            console.log(`[DB] Eklendi/Güncellendi: ${result.upsertedCount + result.modifiedCount} makale (${ARTICLES_COLLECTION}).`);
         } catch (error) {
             console.error("[DB HATA] Toplu yazma işlemi başarısız:", error.message);
         }
@@ -60,20 +66,20 @@ async function getAllArticles() {
     if (!db) {
         throw new Error("Veritabanı bağlı değil.");
     }
-    const collection = db.collection('articles');
+    const collection = db.collection(ARTICLES_COLLECTION); // <-- Yeni adı kullan
     return await collection.find({}).sort({ pubDate: -1 }).toArray();
 }
 
-// --- "BAĞLANTILARIM" İÇİN FONKSİYONLAR ('links' koleksiyonu) ---
+// --- 'haberci_links' KOLEKSİYONU OPERASYONLARI ---
 
 /**
- * 'links' koleksiyonuna yeni bir bağlantı ekler.
+ * 'haberci_links' koleksiyonuna yeni bir bağlantı ekler.
  */
 async function addLink(title, link) {
     if (!db) {
         throw new Error("Veritabanı bağlı değil.");
     }
-    const collection = db.collection('links');
+    const collection = db.collection(LINKS_COLLECTION); // <-- Yeni adı kullan
     try {
         const result = await collection.updateOne(
             { link: link }, 
@@ -81,9 +87,9 @@ async function addLink(title, link) {
             { upsert: true } 
         );
         if (result.upsertedCount > 0) {
-            console.log(`[DB] Yeni bağlantı eklendi: ${title}`);
+            console.log(`[DB] Yeni bağlantı eklendi (${LINKS_COLLECTION}): ${title}`);
         } else {
-            console.log(`[DB] Mevcut bağlantı güncellendi: ${title}`);
+            console.log(`[DB] Mevcut bağlantı güncellendi (${LINKS_COLLECTION}): ${title}`);
         }
     } catch (error) {
         console.error("[DB HATA] Bağlantı eklenemedi:", error.message);
@@ -92,36 +98,34 @@ async function addLink(title, link) {
 }
 
 /**
- * 'links' koleksiyonundan tüm bağlantıları alır.
+ * 'haberci_links' koleksiyonundan tüm bağlantıları alır.
  */
 async function getAllLinks() {
     if (!db) {
         throw new Error("Veritabanı bağlı değil.");
     }
-    const collection = db.collection('links');
+    const collection = db.collection(LINKS_COLLECTION); // <-- Yeni adı kullan
     return await collection.find({}).sort({ createdAt: -1 }).toArray();
 }
 
 /**
- * *** YENİ FONKSİYON ***
- * 'links' koleksiyonundan ID'ye göre bir linki siler.
+ * 'haberci_links' koleksiyonundan ID'ye göre bir linki siler.
  */
 async function deleteLink(linkId) {
     if (!db) {
         throw new Error("Veritabanı bağlı değil.");
     }
-    const collection = db.collection('links');
+    const collection = db.collection(LINKS_COLLECTION); // <-- Yeni adı kullan
     try {
-        // MongoDB'nin _id'si bir ObjectId nesnesi olmalıdır
+        if (!ObjectId.isValid(linkId)) {
+             console.error("Hata: Geçersiz Link ID formatı.");
+             return { deletedCount: 0 };
+        }
         const result = await collection.deleteOne({ _id: new ObjectId(linkId) });
-        console.log(`[DB] Link silindi, silinen sayı: ${result.deletedCount}`);
+        console.log(`[DB] Link silindi (${LINKS_COLLECTION}), silinen sayı: ${result.deletedCount}`);
         return result;
     } catch (error) {
         console.error("[DB HATA] Link silinemedi:", error.message);
-        if (error.message.includes("Argument passed in must be a string of 12 bytes")) {
-            console.error("Hata: Geçersiz Link ID formatı.");
-            return { deletedCount: 0 }; // Geçersiz ID ise 0 döndür
-        }
         throw error;
     }
 }
@@ -134,5 +138,5 @@ module.exports = {
     getAllArticles,
     addLink,
     getAllLinks,
-    deleteLink // <-- YENİ
+    deleteLink
 };
